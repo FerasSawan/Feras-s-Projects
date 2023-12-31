@@ -1,3 +1,7 @@
+/** 
+Used as a quick math competion at our schools anual STEAM day. Prompted user a random multiplication question....
+
+
 import random
 import tkinter as tk
 from tkinter import messagebox
