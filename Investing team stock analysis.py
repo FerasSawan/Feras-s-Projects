@@ -1,3 +1,7 @@
+#Compile stocks from diverse categories and rank them using metrics gathered from Yahoo Finance.
+#Import the data into an Excel file in an organized fashion, facilitating easy analysis and readability.
+
+
 import yfinance as yf
 #import GrowthEstimateScraper
 #import SentimentAnalysis
