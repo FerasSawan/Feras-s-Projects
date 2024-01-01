@@ -1,3 +1,7 @@
+#Featured in our school's STEAM day, the program prompts users with quick multiplication questions. 
+#Respond swiftly; the person with the most correct answers in 30 seconds emerges as the winner. 
+#Developed using Python GUI (tkinter).
+
 import random
 import tkinter as tk
 from tkinter import messagebox
