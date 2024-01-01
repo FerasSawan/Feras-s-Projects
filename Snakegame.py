@@ -1,3 +1,6 @@
+#simple snake game using Python GUI (tkinter) 
+
+
 from tkinter import *
 import random
 from PIL import Image, ImageTk
