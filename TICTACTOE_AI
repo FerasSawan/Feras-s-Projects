@@ -1,0 +1,657 @@
+from tkinter import *
+from tkinter import messagebox
+import random
+
+class TicTacToeBot:
+    def __init__(self, master):
+        self.master = master
+        
+        # Change the window background color
+        self.master.config(bg="#282C34")
+        
+        # Create a canvas with new background color
+        self.game_canvas = Canvas(self.master, bg="#282C34", relief=RAISED, bd=3)
+        self.game_canvas.pack(fill=BOTH, expand=1)
+
+        # Tracking positions
+        self.bot_positions = []
+        self.user_positions = []
+        self.prediction_slots = []
+        self.cell_values = {}
+        self.turn_count = 0
+        self.strategy_type = -1
+        
+        # Adjacent or "surrounding" slot references
+        self.adjacent_positions = {
+            1: (2,3,4,7),
+            2: (1,3),
+            3: (1,2,6,9),
+            4: (1,7),
+            5: (2,4,6,8),
+            6: (3,9),
+            7: (1,4,8,9),
+            8: (7,9),
+            9: (7,8,6,3)
+        }
+        self.initialize_board()
+
+    def initialize_board(self):
+        # Main Title Label
+        Label(
+            self.game_canvas, text="Tic-Tac-Toe AI", bg="#282C34",
+            fg="#61AFEF", font=("Lato", 25, "bold")
+        ).place(x=110, y=10)
+
+        # Button styling
+        btn_style = {
+            "font": ("Arial", 15, "bold", "italic"),
+            "width": 5,
+            "bg": "#3C4047",
+            "activebackground": "#3C4047",
+            "bd": 3,
+            "fg": "#ECEFF4",
+            "disabledforeground": "#808080"
+        }
+
+        # Create 9 buttons for the grid
+        self.btn_1 = Button(self.game_canvas, text="", command=lambda: self.user_turn(1), state=DISABLED, **btn_style)
+        self.btn_2 = Button(self.game_canvas, text="", command=lambda: self.user_turn(2), state=DISABLED, **btn_style)
+        self.btn_3 = Button(self.game_canvas, text="", command=lambda: self.user_turn(3), state=DISABLED, **btn_style)
+        self.btn_4 = Button(self.game_canvas, text="", command=lambda: self.user_turn(4), state=DISABLED, **btn_style)
+        self.btn_5 = Button(self.game_canvas, text="", command=lambda: self.user_turn(5), state=DISABLED, **btn_style)
+        self.btn_6 = Button(self.game_canvas, text="", command=lambda: self.user_turn(6), state=DISABLED, **btn_style)
+        self.btn_7 = Button(self.game_canvas, text="", command=lambda: self.user_turn(7), state=DISABLED, **btn_style)
+        self.btn_8 = Button(self.game_canvas, text="", command=lambda: self.user_turn(8), state=DISABLED, **btn_style)
+        self.btn_9 = Button(self.game_canvas, text="", command=lambda: self.user_turn(9), state=DISABLED, **btn_style)
+
+        # Place the buttons on the canvas
+        self.btn_1.place(x=20,  y=100)
+        self.btn_2.place(x=190, y=100)
+        self.btn_3.place(x=360, y=100)
+        self.btn_4.place(x=20,  y=200)
+        self.btn_5.place(x=190, y=200)
+        self.btn_6.place(x=360, y=200)
+        self.btn_7.place(x=20,  y=300)
+        self.btn_8.place(x=190, y=300)
+        self.btn_9.place(x=360, y=300)
+
+        self.board_buttons = [
+            self.btn_1, self.btn_2, self.btn_3,
+            self.btn_4, self.btn_5, self.btn_6,
+            self.btn_7, self.btn_8, self.btn_9
+        ]
+
+        # Button to have Bot go first
+        self.bot_first_button = Button(
+            self.game_canvas,
+            text="Computer vs Player",
+            font=("Arial", 15, "bold", "italic"),
+            bg="#3C4047",
+            activebackground="#3C4047",
+            fg="#9d9dff",
+            bd=3,
+            relief=RAISED,
+            command=lambda: self.set_game_mode("bot_first")
+        )
+        self.bot_first_button.place(x=15, y=380)
+
+        # Button to have Player go first
+        self.user_first_button = Button(
+            self.game_canvas,
+            text="Player vs Computer",
+            font=("Arial", 15, "bold", "italic"),
+            bg="#3C4047",
+            activebackground="#3C4047",
+            fg="#9d9dff",
+            bd=3,
+            relief=RAISED,
+            command=self.set_game_mode
+        )
+        self.user_first_button.place(x=240, y=380)
+
+        # Reset button
+        self.reset_button = Button(
+            self.game_canvas,
+            text="Reset",
+            font=("Arial", 15, "bold", "italic"),
+            bg="#3C4047",
+            activebackground="#3C4047",
+            fg="#9d9dff",
+            disabledforeground="#808080",
+            bd=3,
+            relief=RAISED,
+            command=self.reset_game,
+            state=DISABLED
+        )
+        self.reset_button.place(x=190, y=440)
+
+    def reset_game(self):
+        self.bot_positions.clear()
+        self.user_positions.clear()
+        self.cell_values.clear()
+        self.prediction_slots.clear()
+        self.strategy_type = -1
+        self.turn_count = 0
+        
+        for btn in self.board_buttons:
+            btn.config(text="", state=DISABLED)
+        
+        self.bot_first_button.config(state=NORMAL)
+        self.user_first_button.config(state=NORMAL)
+        self.reset_button.config(state=DISABLED)
+
+    def end_game_actions(self):
+        for btn in self.board_buttons:
+            btn.config(state=DISABLED)
+        self.reset_button.config(state=NORMAL)
+
+    def set_game_mode(self, mode="user_first"):
+        self.bot_first_button.config(state=DISABLED, disabledforeground="#808080")
+        self.user_first_button.config(state=DISABLED, disabledforeground="#808080")
+        self.reset_button.config(state=DISABLED, disabledforeground="#808080")
+
+        for btn in self.board_buttons:
+            btn.config(state=NORMAL)
+
+        if mode == "bot_first":
+            self.bot_turn()
+
+    def insert_symbol(self, position, symbol="X"):
+        """
+        Insert the given symbol ('X' for bot, 'O' for user) into the board button,
+        disable the button, and store the position in the dictionary.
+        """
+        if symbol == "X":
+            # Bot moves (text color = light green)
+            self.board_buttons[position - 1].config(text=symbol, state=DISABLED, disabledforeground="#98C379")
+        else:
+            # User moves (text color = light red)
+            self.board_buttons[position - 1].config(text=symbol, state=DISABLED, disabledforeground="#E06C75")
+        self.cell_values[position] = symbol
+
+    def bot_turn(self):
+        """
+        Encapsulates all logic for the bot's move.
+        """
+        self.turn_count += 1
+        
+        # --- Bot's logic based on turn_count ---
+        if self.turn_count == 1:
+            self.insert_symbol(9)  # first move
+            self.bot_positions.append(9)
+
+        elif self.turn_count == 2:
+            last_user_move = self.user_positions[-1]
+            if last_user_move != 5:
+                self.strategy_type = 1
+                self.insert_symbol(5)
+                self.bot_positions.append(5)
+            else:
+                self.strategy_type = 2
+                self.insert_symbol(9)
+                self.bot_positions.append(9)
+
+        elif self.turn_count == 3:
+            last_user_move = self.user_positions[-1]
+            if last_user_move % 2 == 0:
+                self.strategy_type = 1
+                self.board_buttons[5 - 1].config(text="X", state=DISABLED, disabledforeground="#98C379")
+                self.cell_values[5] = "X"
+                self.prediction_slots.append(1)
+            elif last_user_move != 5:
+                self.strategy_type = 2
+                next_guess = [7, 3]
+                if last_user_move in next_guess:
+                    next_guess.remove(last_user_move)
+                choice = random.choice(next_guess)
+                self.insert_symbol(choice)
+                self.prediction_slots.append(1)
+                self.bot_positions.append(choice)
+            else:
+                self.strategy_type = 3
+                self.insert_symbol(1)
+
+        elif self.turn_count == 4:
+            first_user_move = self.user_positions[0]
+            second_user_move = self.user_positions[1]
+            opposite = {1:9, 2:8, 3:7, 4:6, 6:4, 7:3, 8:2, 9:1}
+            
+            if self.strategy_type == 1:
+                adjacent_list = list(self.adjacent_positions[first_user_move])
+                if second_user_move in adjacent_list:
+                    adjacent_list.remove(second_user_move)
+                    diff = second_user_move - first_user_move
+                    if diff == 6 or diff == -6:
+                        target_spot = first_user_move + 3 if diff == 6 else first_user_move - 3
+                    elif diff == 2 or diff == -2:
+                        target_spot = first_user_move + 1 if diff == 2 else first_user_move - 1
+                    elif diff == 1 or diff == -1:
+                        if diff == 1:
+                            if (first_user_move - 1) in (1, 7):
+                                target_spot = first_user_move - 1
+                            else:
+                                target_spot = second_user_move + 1
+                        else:
+                            if (second_user_move - 1) in (1, 7):
+                                target_spot = second_user_move - 1
+                            else:
+                                target_spot = first_user_move + 1
+                    elif diff == 3 or diff == -3:
+                        if diff == 3:
+                            if (first_user_move - 3) in (1, 3):
+                                target_spot = first_user_move - 3
+                            else:
+                                target_spot = second_user_move + 3
+                        else:
+                            if (second_user_move - 3) in (1, 3):
+                                target_spot = second_user_move - 3
+                            else:
+                                target_spot = first_user_move + 3
+
+                    self.insert_symbol(target_spot)
+                    self.bot_positions.append(target_spot)
+                    self.prediction_slots.append(opposite[target_spot])
+                    self.adjacent_positions[first_user_move] = tuple(adjacent_list)
+                else:
+                    if 2 not in self.cell_values:
+                        self.insert_symbol(2)
+                        self.bot_positions.append(2)
+                        if opposite[2] not in self.cell_values:
+                            self.prediction_slots.append(opposite[2])
+                    else:
+                        possible_choices = [4, 6, 8]
+                        used_slots = self.user_positions + self.bot_positions
+                        for item in used_slots:
+                            if item in possible_choices:
+                                possible_choices.remove(item)
+                        chosen = random.choice(possible_choices)
+                        self.insert_symbol(chosen)
+                        self.bot_positions.append(chosen)
+                        self.prediction_slots.append(opposite[chosen])
+
+            elif self.strategy_type == 2:
+                recent_user_move = self.user_positions[-1]
+                if recent_user_move == 1:
+                    place_it = 3
+                    self.prediction_slots.append(4)
+                    self.prediction_slots.append(6)
+                else:
+                    place_it = opposite[recent_user_move]
+                    diff = 9 - place_it
+                    if diff == 2:
+                        self.prediction_slots.append(8)
+                    elif diff == 6:
+                        self.prediction_slots.append(6)
+                    elif diff == 3:
+                        self.prediction_slots.append(7)
+                    else:
+                        self.prediction_slots.append(5)
+                self.insert_symbol(place_it)
+                self.bot_positions.append(place_it)
+
+        elif self.turn_count == 5:
+            last_user_move = self.user_positions[-1]
+            if self.strategy_type == 1:
+                if self.prediction_slots and self.prediction_slots[0] != last_user_move:
+                    self.insert_symbol(self.prediction_slots[0])
+                    self.check_bot_win()
+                else:
+                    try:
+                        try:
+                            if self.cell_values[self.prediction_slots[0]+1] == "O":
+                                pass
+                        except:
+                            if self.cell_values[self.prediction_slots[0]+7] == "O":
+                                pass
+                        chosen_slot = self.prediction_slots[0] + 2
+                        self.prediction_slots.clear()
+                        self.prediction_slots.extend([6, 7])
+                    except:
+                        chosen_slot = self.prediction_slots[0] + 6
+                        self.prediction_slots.clear()
+                        self.prediction_slots.extend([8, 3])
+                    
+                    self.insert_symbol(chosen_slot)
+                    self.bot_positions.append(chosen_slot)
+                
+            elif self.strategy_type == 2:
+                if (self.bot_positions[0] - self.bot_positions[1]) == 6:
+                    try:
+                        if self.cell_values[self.bot_positions[1] + 3] == "O":
+                            self.prediction_slots.clear()
+                            if 7 in self.cell_values:
+                                next_slot = 1
+                                self.prediction_slots.append(2)
+                            else:
+                                next_slot = 7
+                                self.prediction_slots.append(8)
+                            self.prediction_slots.append(5)
+                            self.insert_symbol(next_slot)
+                            self.bot_positions.append(next_slot)
+                    except:
+                        self.insert_symbol(self.bot_positions[1] + 3)
+                        self.check_bot_win()
+                else:
+                    try:
+                        if self.cell_values[self.bot_positions[1] + 1] == "O":
+                            self.prediction_slots.clear()
+                            if 3 in self.cell_values:
+                                new_spot = 1
+                                self.prediction_slots.append(4)
+                            else:
+                                new_spot = 3
+                                self.prediction_slots.append(6)
+                            self.prediction_slots.append(5)
+                            self.insert_symbol(new_spot)
+                            self.bot_positions.append(new_spot)
+                    except:
+                        self.insert_symbol(self.bot_positions[1] + 1)
+                        self.bot_positions.append(self.bot_positions[1] + 1)
+                        self.check_bot_win()
+            else:
+                if self.prediction_slots:
+                    self.prediction_slots.clear()
+                special_pair = {2: 8, 8: 2, 4: 6, 6: 4}
+                if last_user_move in special_pair:
+                    self.strategy_type = 3.1
+                    self.insert_symbol(special_pair[last_user_move])
+                    self.bot_positions.append(special_pair[last_user_move])
+                    next_map = {8: 7, 4: 7, 2: 3, 6: 3}
+                    self.prediction_slots.append(next_map[special_pair[last_user_move]])
+                else:
+                    self.strategy_type = 3.2
+                    if last_user_move == 3:
+                        self.insert_symbol(7)
+                        self.bot_positions.append(7)
+                        self.prediction_slots.append(8)
+                        self.prediction_slots.append(4)
+                    else:
+                        self.insert_symbol(3)
+                        self.bot_positions.append(3)
+                        self.prediction_slots.append(2)
+                        self.prediction_slots.append(6)
+
+        elif self.turn_count == 6:
+            if self.check_user_win():
+                opposite_map = {1:9, 2:8, 3:7, 4:6, 6:4, 7:3, 8:2, 9:1}
+                last_user_move = self.user_positions[-1]
+                
+                if self.strategy_type == 1:
+                    if self.prediction_slots and last_user_move != self.prediction_slots[0]:
+                        self.insert_symbol(self.prediction_slots[0])
+                        self.bot_positions.append(self.prediction_slots[0])
+                        self.check_bot_win()
+                    elif not self.prediction_slots:
+                        if (last_user_move + 3) in (7, 9):
+                            chosen_place = last_user_move + 3
+                        elif (last_user_move - 3) in (1, 3):
+                            chosen_place = last_user_move - 3
+                        elif (last_user_move - 3) in (4, 6):
+                            chosen_place = last_user_move - 3
+                        else:
+                            chosen_place = last_user_move + 3
+
+                        self.insert_symbol(chosen_place)
+                        self.bot_positions.append(chosen_place)
+                        self.prediction_slots.append(opposite_map[chosen_place])
+                    else:
+                        self.prediction_slots.clear()
+                        if last_user_move % 2 == 0:
+                            if last_user_move == 8:
+                                if (last_user_move + 1) in (3, 9) and (last_user_move + 1) not in self.cell_values:
+                                    next_spot = last_user_move + 1
+                                elif (last_user_move - 1) in (1, 7) and (last_user_move - 1) not in self.cell_values:
+                                    next_spot = last_user_move - 1
+                                elif (last_user_move - 3) in (1, 3) and (last_user_move - 3) not in self.cell_values:
+                                    next_spot = last_user_move - 3
+                                else:
+                                    next_spot = last_user_move + 3
+                                
+                                self.insert_symbol(next_spot)
+                                self.bot_positions.append(next_spot)
+                                temp_opposite = {7: 3, 3: 7, 1: 9, 9: 1}
+                                self.prediction_slots.append(temp_opposite[next_spot])
+                            else:
+                                center_adj = list(self.adjacent_positions[5])
+                                used = self.user_positions + self.bot_positions
+                                for i in used:
+                                    if i in center_adj:
+                                        center_adj.remove(i)
+                                if center_adj:
+                                    if ((last_user_move + 3) in (7, 9) or (last_user_move + 3) in self.cell_values):
+                                        new_slot = last_user_move - 3
+                                    else:
+                                        new_slot = random.choice(center_adj)
+                                        center_adj.remove(new_slot)
+                                    self.insert_symbol(new_slot)
+                                    self.bot_positions.append(new_slot)
+                                    self.adjacent_positions[5] = tuple(center_adj)
+                                    self.prediction_slots.append(opposite_map[new_slot])
+                                else:
+                                    for key in opposite_map:
+                                        if key % 2 != 0 and opposite_map[key] not in self.cell_values:
+                                            self.insert_symbol(key)
+                                            self.bot_positions.append(key)
+                                            self.prediction_slots.append(opposite_map[key])
+                                            if (key + 6) in (7, 9) and (key + 6) not in self.cell_values:
+                                                self.prediction_slots.append(key + 6)
+                                            elif (key - 6) in (1, 3) and (key - 6) not in self.cell_values:
+                                                self.prediction_slots.append(key - 6)
+                                            elif (key - 2) in (1, 7) and (key - 2) not in self.cell_values:
+                                                self.prediction_slots.append(key - 2)
+                                            else:
+                                                self.prediction_slots.append(key + 2)
+                                            break
+                        else:
+                            neighbors = self.adjacent_positions[last_user_move]
+                            for n in neighbors:
+                                if n not in self.cell_values:
+                                    self.insert_symbol(n)
+                                    self.bot_positions.append(n)
+                                    if opposite_map[n] not in self.cell_values:
+                                        self.prediction_slots.append(opposite_map[n])
+                                    break
+                else:
+                    if len(self.prediction_slots) == 2:
+                        if last_user_move in self.prediction_slots:
+                            if self.prediction_slots[1] != last_user_move:
+                                self.insert_symbol(self.prediction_slots[1])
+                                self.bot_positions.append(self.prediction_slots[1])
+                                self.check_bot_win()
+                            else:
+                                self.insert_symbol(self.prediction_slots[0])
+                                self.bot_positions.append(self.prediction_slots[0])
+                                self.prediction_slots.clear()
+                                self.prediction_slots.append(2)
+                        else:
+                            self.insert_symbol(self.prediction_slots[1])
+                            self.bot_positions.append(self.prediction_slots[1])
+                            self.check_bot_win()
+                    else:
+                        if last_user_move != self.prediction_slots[0]:
+                            self.insert_symbol(self.prediction_slots[0])
+                            self.bot_positions.append(self.prediction_slots[0])
+                            self.check_bot_win()
+                        else:
+                            self.insert_symbol(opposite_map[self.prediction_slots[0]])
+                            self.bot_positions.append(opposite_map[self.prediction_slots[0]])
+
+        elif self.turn_count == 7:
+            last_user_move = self.user_positions[-1]
+            if self.strategy_type == 1:
+                if self.prediction_slots[0] == last_user_move:
+                    self.insert_symbol(self.prediction_slots[1])
+                else:
+                    self.insert_symbol(self.prediction_slots[0])
+                self.check_bot_win()
+            elif self.strategy_type == 2:
+                if last_user_move in self.prediction_slots:
+                    self.prediction_slots.remove(last_user_move)
+                self.insert_symbol(self.prediction_slots[0])
+                self.check_bot_win()
+            else:
+                if self.strategy_type == 3.2:
+                    if last_user_move in self.prediction_slots:
+                        self.prediction_slots.remove(last_user_move)
+                    self.insert_symbol(self.prediction_slots[0])
+                    self.check_bot_win()
+                else:
+                    if last_user_move in self.prediction_slots:
+                        self.prediction_slots.clear()
+                        alt_moves = {7: 3, 3: 7}
+                        self.insert_symbol(alt_moves[last_user_move])
+                        new_user_prediction = {3: (2,6), 7: (4,8)}
+                        self.prediction_slots.extend(new_user_prediction[alt_moves[last_user_move]])
+                    else:
+                        self.insert_symbol(self.prediction_slots[0])
+                        self.check_bot_win()
+
+        elif self.turn_count == 8:
+            if self.check_user_win():
+                last_user_move = self.user_positions[-1]
+                opposite_map = {1:9, 2:8, 3:7, 4:6, 6:4, 7:3, 8:2, 9:1}
+                
+                if self.strategy_type == 1:
+                    if self.prediction_slots and last_user_move not in self.prediction_slots:
+                        if self.prediction_slots[0] not in self.cell_values:
+                            self.insert_symbol(self.prediction_slots[0])
+                            self.bot_positions.append(self.prediction_slots[0])
+                        else:
+                            free_spots = list(range(1,10))
+                            for used_spot in (self.bot_positions + self.user_positions):
+                                if used_spot in free_spots:
+                                    free_spots.remove(used_spot)
+                            random_spot = random.choice(free_spots)
+                            self.insert_symbol(random_spot)
+                            self.bot_positions.append(random_spot)
+                        self.check_bot_win()
+                    elif not self.prediction_slots:
+                        self.insert_symbol(last_user_move + 2)
+                        self.bot_positions.append(last_user_move + 2)
+                    else:
+                        if len(self.prediction_slots) == 2:
+                            if last_user_move in self.prediction_slots:
+                                self.prediction_slots.remove(last_user_move)
+                            self.insert_symbol(self.prediction_slots[0])
+                            self.bot_positions.append(self.prediction_slots[0])
+                            self.check_bot_win()
+                        else:
+                            near_slots = self.adjacent_positions[last_user_move]
+                            for spot in near_slots:
+                                if spot not in self.cell_values:
+                                    self.insert_symbol(spot)
+                                    self.bot_positions.append(spot)
+                                    break
+                else:
+                    if opposite_map[last_user_move] not in self.cell_values:
+                        self.insert_symbol(opposite_map[last_user_move])
+                        self.bot_positions.append(opposite_map[last_user_move])
+                    else:
+                        free_spots = list(range(1,10))
+                        used_spots = self.bot_positions + self.user_positions
+                        for used_spot in used_spots:
+                            if used_spot in free_spots:
+                                free_spots.remove(used_spot)
+                        random_spot = random.choice(free_spots)
+                        self.insert_symbol(random_spot)
+                        self.bot_positions.append(random_spot)
+        
+        elif self.turn_count == 9:
+            last_user_move = self.user_positions[-1]
+            if len(self.prediction_slots) > 1 and all(slot in self.cell_values for slot in self.prediction_slots):
+                self.prediction_slots.clear()
+                fallback_map = {2: 8, 8: 2, 4: 6, 6: 4}
+                self.insert_symbol(fallback_map[last_user_move])
+                self.check_bot_win()
+            else:
+                if self.prediction_slots and self.prediction_slots[0] in self.cell_values:
+                    self.insert_symbol(self.prediction_slots[1])
+                else:
+                    if self.prediction_slots:
+                        self.insert_symbol(self.prediction_slots[0])
+                self.check_bot_win()
+
+    def user_turn(self, position):
+        self.turn_count += 1
+        self.insert_symbol(position, "O")
+        self.user_positions.append(position)
+        if self.turn_count == 9:
+            self.check_user_win()
+        else:
+            self.bot_turn()
+
+    def check_bot_win(self):
+        bot_won = False
+        # Check rows
+        if (self.board_buttons[0]['text'] == self.board_buttons[1]['text'] == self.board_buttons[2]['text'] == "X"):
+            bot_won = True
+        elif (self.board_buttons[3]['text'] == self.board_buttons[4]['text'] == self.board_buttons[5]['text'] == "X"):
+            bot_won = True
+        elif (self.board_buttons[6]['text'] == self.board_buttons[7]['text'] == self.board_buttons[8]['text'] == "X"):
+            bot_won = True
+
+        # Check columns
+        elif (self.board_buttons[0]['text'] == self.board_buttons[3]['text'] == self.board_buttons[6]['text'] == "X"):
+            bot_won = True
+        elif (self.board_buttons[1]['text'] == self.board_buttons[4]['text'] == self.board_buttons[7]['text'] == "X"):
+            bot_won = True
+        elif (self.board_buttons[2]['text'] == self.board_buttons[5]['text'] == self.board_buttons[8]['text'] == "X"):
+            bot_won = True
+
+        # Check diagonals
+        elif (self.board_buttons[0]['text'] == self.board_buttons[4]['text'] == self.board_buttons[8]['text'] == "X"):
+            bot_won = True
+        elif (self.board_buttons[2]['text'] == self.board_buttons[4]['text'] == self.board_buttons[6]['text'] == "X"):
+            bot_won = True
+        
+        if bot_won:
+            messagebox.showinfo("Game Over", "Computer is the winner!")
+            self.end_game_actions()
+        elif self.turn_count == 9:
+            messagebox.showinfo("Game Over", "It's a draw!")
+            self.end_game_actions()
+
+    def check_user_win(self):
+        user_won = False
+        # Check rows
+        if (self.board_buttons[0]['text'] == self.board_buttons[1]['text'] == self.board_buttons[2]['text'] == "O"):
+            user_won = True
+        elif (self.board_buttons[3]['text'] == self.board_buttons[4]['text'] == self.board_buttons[5]['text'] == "O"):
+            user_won = True
+        elif (self.board_buttons[6]['text'] == self.board_buttons[7]['text'] == self.board_buttons[8]['text'] == "O"):
+            user_won = True
+
+        # Check columns
+        elif (self.board_buttons[0]['text'] == self.board_buttons[3]['text'] == self.board_buttons[6]['text'] == "O"):
+            user_won = True
+        elif (self.board_buttons[1]['text'] == self.board_buttons[4]['text'] == self.board_buttons[7]['text'] == "O"):
+            user_won = True
+        elif (self.board_buttons[2]['text'] == self.board_buttons[5]['text'] == self.board_buttons[8]['text'] == "O"):
+            user_won = True
+
+        # Check diagonals
+        elif (self.board_buttons[0]['text'] == self.board_buttons[4]['text'] == self.board_buttons[8]['text'] == "O"):
+            user_won = True
+        elif (self.board_buttons[2]['text'] == self.board_buttons[4]['text'] == self.board_buttons[6]['text'] == "0"):
+            user_won = True
+        
+        if user_won:
+            messagebox.showinfo("Game Over", "You are the winner!")
+            self.end_game_actions()
+            return False  # to indicate user has won
+        elif self.turn_count == 9:
+            messagebox.showinfo("Game Over", "It's a draw!")
+            self.end_game_actions()
+            return False
+        else:
+            return True
+
+if __name__ == "__main__":
+    root = Tk()
+    root.title("AI Tic-Tac-Toe")
+    root.geometry("450x500")
+    root.maxsize(450, 500)
+    root.minsize(450, 500)
+
+    TicTacToeBot(root)
+    root.mainloop()
